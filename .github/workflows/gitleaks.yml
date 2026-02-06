@@ -1,0 +1,56 @@
+name: Gitleaks Secret Scan
+
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 1'   # Weekly Monday 3am UTC
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout full history (important for secret scanning)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Install open-source Gitleaks binary (FREE, no license)
+      - name: Install Gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64.tar.gz
+          tar -xzf gitleaks-linux-amd64.tar.gz
+          sudo mv gitleaks /usr/local/bin/
+
+      # Run scan
+      - name: Run Gitleaks
+        run: |
+          gitleaks detect \
+            --source . \
+            --verbose \
+            --exit-code 1
+
+
+# name: Gitleaks Secret Scan
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 3 * * 1'  # Weekly Monday 3am UTC
+#   workflow_dispatch:       # Allow manual trigger
+
+# jobs:
+#   gitleaks:
+#     name: Scan for secrets
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#       - uses: gitleaks/gitleaks-action@v2
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           GITLEAKS_ENABLE_COMMENTS: false
