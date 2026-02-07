@@ -1,0 +1,90 @@
+name: Limit Branches Per User
+
+on:
+  create:
+
+jobs:
+  limit-branches:
+    runs-on: ubuntu-latest
+    # Only run when a branch is created (not a tag)
+    if: github.event.ref_type == 'branch'
+    steps:
+      - name: Check Branch Count
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const MAX_BRANCHES = 2;
+            const actor = context.actor;
+            const newBranch = context.payload.ref;
+            const repo = context.repo;
+
+            console.log(`Triggered by: ${actor}`);
+            console.log(`New Branch: ${newBranch}`);
+
+            // 1. Fetch all branches (pagination handling needed for >100)
+            // GitHub API returns 100 per page max.
+            let branches = [];
+            let page = 1;
+            while (true) {
+              const { data: list } = await github.rest.repos.listBranches({
+                ...repo,
+                per_page: 100,
+                page: page
+              });
+              if (list.length === 0) break;
+              branches = branches.concat(list);
+              page++;
+            }
+            console.log(`Total branches in repo: ${branches.length}`);
+
+            // 2. Count branches "owned" by the actor
+            // Definition of "Ownership": Last commit author login == actor
+            let userBranchCount = 0;
+            let userBranches = [];
+
+            for (const branch of branches) {
+              // Optimization: We can skip fetching commit if we already exceeded count?
+              // No, we need accurate count to justify deletion.
+              
+              const commitSha = branch.commit.sha;
+              
+              try {
+                const { data: commitData } = await github.rest.repos.getCommit({
+                  ...repo,
+                  ref: commitSha
+                });
+                
+                // Check author
+                const commitAuthor = commitData.author ? commitData.author.login : null;
+                
+                if (commitAuthor === actor) {
+                  userBranchCount++;
+                  userBranches.push(branch.name);
+                }
+              } catch (e) {
+                console.log(`Error fetching commit for ${branch.name}: ${e.message}`);
+              }
+            }
+
+            console.log(`User '${actor}' owns ${userBranchCount} branches: ${JSON.stringify(userBranches)}`);
+
+            // 3. Enforce Limit
+            // Note: userBranchCount INCLUDES the newly created branch (since it exists now)
+            if (userBranchCount > MAX_BRANCHES) {
+              console.log(`LIMIT EXCEEDED (${userBranchCount} > ${MAX_BRANCHES}). Deleting new branch: ${newBranch}`);
+              
+              try {
+                await github.rest.git.deleteRef({
+                  ...repo,
+                  ref: `heads/${newBranch}`
+                });
+                console.log(`SUCCESS: Deleted branch ${newBranch}`);
+                core.setFailed(`User '${actor}' has reached the limit of ${MAX_BRANCHES} branches. The new branch '${newBranch}' has been deleted.`);
+              } catch (e) {
+                console.log(`FAILED to delete branch: ${e.message}`);
+                core.setFailed(`Failed to delete branch: ${e.message}`);
+              }
+            } else {
+              console.log("Branch limit not exceeded. Allowed.");
+            }
