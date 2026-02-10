@@ -1,0 +1,81 @@
+name: Semgrep SAST
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+jobs:
+  semgrep:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan --config auto --error --json --output semgrep-results.json || true
+          semgrep scan --config auto --error --sarif --output semgrep-results.sarif || true
+
+      # - name: Upload SARIF to GitHub
+      #   if: always()
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: semgrep-results.sarif
+
+      - name: Send JSON to endpoint
+        if: always()
+        run: |
+          curl -X POST "${{ secrets.SAST_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+            -d @semgrep-results.json
+
+# name: Semgrep SAST
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 4 * * 1'
+#   workflow_dispatch:
+
+# jobs:
+#   semgrep:
+#     name: Static analysis
+#     runs-on: ubuntu-latest
+#     container:
+#       image: semgrep/semgrep
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Run Semgrep
+#         run: semgrep scan --config auto --error --json --output semgrep-results.json || true
+
+#       - name: Send results to endpoint
+#         if: always()
+#         run: |
+#           curl -X POST "${{ secrets.SAST_WEBHOOK_URL }}" \
+#             -H "Content-Type: application/json" \
+#             -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+#             -d @semgrep-results.json
+
+# name: Semgrep SAST
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 4 * * 1'  # Weekly Monday 4am UTC
+#   workflow_dispatch:       # Allow manual trigger
+
+# jobs:
+#   semgrep:
+#     name: Static analysis
+#     runs-on: ubuntu-latest
+#     container:
+#       image: semgrep/semgrep
+#     steps:
+#       - uses: actions/checkout@v4
+#       - run: semgrep scan --config auto --error --quiet

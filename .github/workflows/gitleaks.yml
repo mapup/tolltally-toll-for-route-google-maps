@@ -1,0 +1,92 @@
+name: Gitleaks Secret Scan
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/')
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
+
+      - name: Run gitleaks
+        run: |
+          gitleaks detect --source . --verbose --redact --report-format sarif --report-path gitleaks-report.sarif || true
+          gitleaks detect --source . --verbose --redact --report-format json --report-path gitleaks-report.json || true
+
+      # - name: Upload SARIF report
+      #   if: always()
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: gitleaks-report.sarif
+
+      - name: Send JSON to endpoint
+        if: always()
+        run: |
+          curl -X POST "${{ secrets.SAST_GITLEAK_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+            -d @gitleaks-report.json
+
+# name: Gitleaks Secret Scan
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 3 * * 1'
+#   workflow_dispatch:
+
+# jobs:
+#   gitleaks:
+#     name: Scan for secrets
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+
+#       - name: Install gitleaks
+#         run: |
+#           GITLEAKS_VERSION=$(curl -s https://api.github.com/repos/gitleaks/gitleaks/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/')
+#           curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
+
+#       - name: Run gitleaks
+#         run: gitleaks detect --source . --verbose --redact --report-format sarif --report-path gitleaks-report.sarif
+
+#       - name: Upload SARIF report
+#         if: always()
+#         uses: github/codeql-action/upload-sarif@v3
+#         with:
+#           sarif_file: gitleaks-report.sarif
+
+# name: Gitleaks Secret Scan
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 3 * * 1'  # Weekly Monday 3am UTC
+#   workflow_dispatch:       # Allow manual trigger
+
+# jobs:
+#   gitleaks:
+#     name: Scan for secrets
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#       - uses: gitleaks/gitleaks-action@v2
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           GITLEAKS_ENABLE_COMMENTS: false
