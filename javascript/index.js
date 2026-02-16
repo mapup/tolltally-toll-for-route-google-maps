@@ -1,3 +1,4 @@
+require('dotenv').config();
 const request = require("request");
 const polyline = require("polyline");
 
@@ -43,6 +44,9 @@ const getRoute = (cb) => request.get(`${GMAPS_API_URL}?${new URLSearchParams({
 const tollguruUrl = `${TOLLGURU_API_URL}/${POLYLINE_ENDPOINT}`;
 
 const handleRoute = (e, r, body) => {
+  if (e) return console.log(e);
+  const jsonBody = JSON.parse(body);
+  if (jsonBody.error_message) return console.log(jsonBody.error_message);
 
   console.log(body);
   const _polyline = getPolyline(body);

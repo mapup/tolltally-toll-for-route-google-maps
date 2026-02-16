@@ -1,3 +1,2 @@
-requests==2.24.0
-json==2.0.9
+requests>=2.32.0
 polyline==1.4.0

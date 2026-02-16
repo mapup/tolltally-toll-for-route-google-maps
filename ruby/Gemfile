@@ -3,4 +3,4 @@ source 'https://rubygems.org'
 ruby '2.7.2'
 
 gem 'fast-polylines'
-gem 'httparty'
+gem 'httparty', '>= 0.21.0'
