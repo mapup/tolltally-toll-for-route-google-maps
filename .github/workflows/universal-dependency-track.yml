@@ -1,0 +1,134 @@
+name: Dependency Track SBOM Scan
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    # Run daily at 9am UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  dependency-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (if needed)
+        if: hashFiles('**/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Setup Python (if needed)
+        if: hashFiles('**/requirements.txt', '**/pyproject.toml', '**/setup.py') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Setup Go (if needed)
+        if: hashFiles('**/go.mod') != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Setup Java (if needed)
+        if: hashFiles('**/pom.xml', '**/build.gradle', '**/build.gradle.kts') != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies (all languages, including monorepos)
+        run: |
+          echo "🔍 Detecting and installing dependencies..."
+
+          # Node.js / npm (including monorepos with workspaces)
+          if [ -f "package.json" ]; then
+            echo "📦 Found Node.js project in root"
+            npm ci 2>/dev/null || npm install --package-lock-only 2>/dev/null || echo "Note: npm install failed, continuing..."
+          fi
+
+          # Find all package.json files in subdirectories (monorepo support)
+          find . -name "package.json" -not -path "*/node_modules/*" -not -path "*/.git/*" | while read -r pkg; do
+            dir=$(dirname "$pkg")
+            if [ "$dir" != "." ]; then
+              echo "📦 Found Node.js project in: $dir"
+              (cd "$dir" && (npm ci 2>/dev/null || npm install --package-lock-only 2>/dev/null || echo "Note: npm install failed in $dir"))
+            fi
+          done
+
+          # Python projects
+          find . -name "requirements.txt" -not -path "*/.git/*" -not -path "*/venv/*" | while read -r req; do
+            dir=$(dirname "$req")
+            echo "🐍 Found Python project in: $dir"
+            (cd "$dir" && pip install -r requirements.txt 2>/dev/null || echo "Note: pip install failed in $dir")
+          done
+
+          # Go projects
+          find . -name "go.mod" -not -path "*/.git/*" | while read -r gomod; do
+            dir=$(dirname "$gomod")
+            echo "🔷 Found Go project in: $dir"
+            (cd "$dir" && go mod download 2>/dev/null || echo "Note: go mod download failed in $dir")
+          done
+
+          # Java/Maven projects
+          find . -name "pom.xml" -not -path "*/.git/*" | while read -r pom; do
+            dir=$(dirname "$pom")
+            echo "☕ Found Maven project in: $dir"
+            (cd "$dir" && mvn dependency:resolve 2>/dev/null || echo "Note: mvn dependency:resolve failed in $dir")
+          done
+
+          # Java/Gradle projects
+          find . -name "build.gradle*" -not -path "*/.git/*" | while read -r gradle; do
+            dir=$(dirname "$gradle")
+            echo "☕ Found Gradle project in: $dir"
+            (cd "$dir" && (./gradlew dependencies 2>/dev/null || gradle dependencies 2>/dev/null || echo "Note: gradle dependencies failed in $dir"))
+          done
+
+          echo "✅ Dependency installation complete"
+        continue-on-error: true
+
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM with Trivy
+        run: |
+          echo "🔍 Scanning repository for dependencies..."
+          trivy fs --format cyclonedx . -o bom.json
+
+          echo ""
+          echo "📊 SBOM Statistics:"
+          cat bom.json | jq '{
+              totalComponents: (.components | length),
+              componentsWithLicenses: ([.components[] | select(.licenses)] | length)
+          }'
+
+      - name: Upload BOM to Dependency-Track
+        uses: DependencyTrack/gh-upload-sbom@v3
+        with:
+          serverhostname: '44.194.0.211'
+          port: '8091'
+          protocol: 'http'
+          apikey: ${{ secrets.DEPENDENCYTRACK_API_KEY }}
+          projectname: ${{ github.event.repository.name }}
+          projectversion: 'main'
+          bomfilename: 'bom.json'
+          autocreate: 'true'
+
+      - name: Archive SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-cyclonedx
+          path: bom.json
+          retention-days: 90
