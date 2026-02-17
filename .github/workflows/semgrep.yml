@@ -1,0 +1,174 @@
+name: Semgrep SAST
+on:
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual run"
+        required: false
+        default: "Manual security scan"
+
+jobs:
+  semgrep:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan --config auto --error --json --output semgrep-results.json || true
+          semgrep scan --config auto --error --sarif --output semgrep-results.sarif || true
+
+      # - name: Upload SARIF to GitHub
+      #   if: always()
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: semgrep-results.sarif
+
+      - name: Wrap results with repo metadata and send
+        if: always()
+        run: |
+          # Build a wrapper with repo/org info + semgrep results
+          # jq may not be in semgrep image, so use python which is guaranteed
+          python3 -c "
+          import json, os
+
+          # GitHub context
+          repo_full = os.environ.get('GITHUB_REPOSITORY', 'unknown/unknown')  # e.g. mapup/tollguru-api
+          parts = repo_full.split('/', 1)
+          org = parts[0] if len(parts) > 1 else 'unknown'
+          repo = parts[1] if len(parts) > 1 else repo_full
+
+          ref = os.environ.get('GITHUB_REF', 'unknown')
+          sha = os.environ.get('GITHUB_SHA', 'unknown')
+          actor = os.environ.get('GITHUB_ACTOR', 'unknown')
+          event = os.environ.get('GITHUB_EVENT_NAME', 'unknown')
+          run_id = os.environ.get('GITHUB_RUN_ID', 'unknown')
+          server = os.environ.get('GITHUB_SERVER_URL', 'https://github.com')
+
+          # Load semgrep results
+          try:
+              with open('semgrep-results.json', 'r') as f:
+                  semgrep = json.load(f)
+          except Exception:
+              semgrep = {'results': [], 'errors': [], 'version': 'unknown'}
+
+          # Wrap payload
+          payload = {
+              'tool': 'semgrep',
+              'org': org,
+              'repo': repo,
+              'ref': ref,
+              'sha': sha,
+              'actor': actor,
+              'event': event,
+              'run_id': run_id,
+              'repo_url': f'{server}/{repo_full}',
+              'results': semgrep.get('results', []),
+              'errors': semgrep.get('errors', []),
+              'version': semgrep.get('version', 'unknown')
+          }
+
+          with open('semgrep-payload.json', 'w') as f:
+              json.dump(payload, f)
+
+          print(f'✅ Wrapped {len(payload[\"results\"])} findings for {org}/{repo}')
+          "
+
+          curl -X POST "${{ secrets.SAST_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+            -d @semgrep-payload.json
+
+# name: Semgrep SAST
+# on:
+#   pull_request:
+#     branches: [main, master]
+#   schedule:
+#     - cron: '0 4 * * 1'
+#   workflow_dispatch:     # Enables manual run
+#     inputs:
+#       reason:
+#         description: "Reason for manual run"
+#         required: false
+#         default: "Manual security scan"
+
+# jobs:
+#   semgrep:
+#     name: Static analysis
+#     runs-on: ubuntu-latest
+#     container:
+#       image: semgrep/semgrep
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Run Semgrep
+#         run: |
+#           semgrep scan --config auto --error --json --output semgrep-results.json || true
+#           semgrep scan --config auto --error --sarif --output semgrep-results.sarif || true
+
+#       # - name: Upload SARIF to GitHub
+#       #   if: always()
+#       #   uses: github/codeql-action/upload-sarif@v3
+#       #   with:
+#       #     sarif_file: semgrep-results.sarif
+
+#       - name: Send JSON to endpoint
+#         if: always()
+#         run: |
+#           curl -X POST "${{ secrets.SAST_WEBHOOK_URL }}" \
+#             -H "Content-Type: application/json" \
+#             -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+#             -d @semgrep-results.json
+
+# # name: Semgrep SAST
+# # on:
+# #   pull_request:
+# #     branches: [main, master]
+# #   schedule:
+# #     - cron: '0 4 * * 1'
+# #   workflow_dispatch:
+
+# # jobs:
+# #   semgrep:
+# #     name: Static analysis
+# #     runs-on: ubuntu-latest
+# #     container:
+# #       image: semgrep/semgrep
+# #     steps:
+# #       - uses: actions/checkout@v4
+
+# #       - name: Run Semgrep
+# #         run: semgrep scan --config auto --error --json --output semgrep-results.json || true
+
+# #       - name: Send results to endpoint
+# #         if: always()
+# #         run: |
+# #           curl -X POST "${{ secrets.SAST_WEBHOOK_URL }}" \
+# #             -H "Content-Type: application/json" \
+# #             -H "Authorization: Bearer ${{ secrets.SAST_WEBHOOK_TOKEN }}" \
+# #             -d @semgrep-results.json
+
+# # name: Semgrep SAST
+# # on:
+# #   pull_request:
+# #     branches: [main, master]
+# #   schedule:
+# #     - cron: '0 4 * * 1'  # Weekly Monday 4am UTC
+# #   workflow_dispatch:       # Allow manual trigger
+
+# # jobs:
+# #   semgrep:
+# #     name: Static analysis
+# #     runs-on: ubuntu-latest
+# #     container:
+# #       image: semgrep/semgrep
+# #     steps:
+# #       - uses: actions/checkout@v4
+# #       - run: semgrep scan --config auto --error --quiet
