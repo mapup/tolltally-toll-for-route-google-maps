@@ -5,6 +5,7 @@ Reference implementations showing how to get a route polyline from **Google Maps
 ## What This Repo Is
 
 A multi-language collection of sample scripts that:
+
 1. Fetch a route polyline from Google Maps for a given origin/destination
 2. Send that polyline to TollGuru to get toll costs broken down by payment method
 
@@ -25,17 +26,18 @@ Each language folder is self-contained with its own README, source, and tests.
 
 ## Prerequisites
 
-| Language | Runtime | Dependency Tool |
-|---|---|---|
-| Python | 3.7+ | pip |
-| JavaScript | Node.js 14+ | npm |
-| Go | 1.16+ | (stdlib only) |
-| Ruby | 2.7+ | bundler |
-| PHP | 7.4+ | (curl extension) |
+| Language   | Runtime     | Dependency Tool  |
+| ---------- | ----------- | ---------------- |
+| Python     | 3.7+        | pip              |
+| JavaScript | Node.js 14+ | npm              |
+| Go         | 1.16+       | (stdlib only)    |
+| Ruby       | 2.7+        | bundler          |
+| PHP        | 7.4+        | (curl extension) |
 
 **API keys required:**
+
 - [Google Maps API key](https://console.cloud.google.com/apis/dashboard) with Directions API enabled
-- [TollGuru API key](https://tollguru.com/developers/get-api-key)
+- [TollGuru API key](https://tollguru.com/blog/get-api-key)
 
 ## Local Setup
 
@@ -108,16 +110,16 @@ These are client-side reference scripts, not a deployed service. Copy the releva
 
 ## Where Config Lives
 
-| Setting | Location |
-|---|---|
-| Google Maps API key | `GMAPS_API_KEY` env var (Ruby uses `GOOGLE_MAPS_API_KEY`) |
-| TollGuru API key | `TOLLGURU_API_KEY` env var |
-| API base URLs | Constants at top of each script |
+| Setting                  | Location                                                       |
+| ------------------------ | -------------------------------------------------------------- |
+| Google Maps API key      | `GMAPS_API_KEY` env var (Ruby uses `GOOGLE_MAPS_API_KEY`)      |
+| TollGuru API key         | `TOLLGURU_API_KEY` env var                                     |
+| API base URLs            | Constants at top of each script                                |
 | Vehicle/departure params | `request_parameters` / `requestParameters` dict in each script |
-| JS dependencies | `javascript/package.json` |
-| Python dependencies | `python/requirements.txt` |
-| Ruby dependencies | `ruby/Gemfile` |
-| Test fixtures | `Testing/`, `test/`, `TestCases/` in each language folder |
+| JS dependencies          | `javascript/package.json`                                      |
+| Python dependencies      | `python/requirements.txt`                                      |
+| Ruby dependencies        | `ruby/Gemfile`                                                 |
+| Test fixtures            | `Testing/`, `test/`, `TestCases/` in each language folder      |
 
 ## Known Limitations
 
@@ -133,7 +135,7 @@ These are client-side reference scripts, not a deployed service. Copy the releva
 
 ## Further Reading
 
-- [TollGuru API Docs](https://tollguru.com/developers/docs/)
+- [TollGuru API Docs](https://tollguru.com/toll-api-docs)
 - [TollGuru API parameter examples](https://github.com/mapup/tollguru-api-parameter-examples/tree/main/request-bodies/02-Complete-Polyline-To-Toll)
 - [Vehicle type coverage](https://github.com/mapup/tollguru_vehicle_coverage/wiki/Vehicle-types-supported-by-TollGuru)
 - [Supported mapping services](https://github.com/mapup/toll-google-maps/wiki/2.-Map-platform-service-supported-by-TollGuru)
