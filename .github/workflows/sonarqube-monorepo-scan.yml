@@ -1,0 +1,69 @@
+name: SonarQube Scan
+
+on:
+  schedule:
+    - cron: '15 3,15 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual run'
+        required: false
+        default: 'Manual SonarQube scan'
+
+concurrency:
+  group: sonar-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  SONAR_HOST_URL: https://sonarqube.mapup.ai
+
+jobs:
+  sonarqube-scan:
+    name: SonarQube - ${{ matrix.projectKey }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - projectDir: "javascript"
+            projectKey: "tolltally-toll-for-route-google-maps-javascript"
+            projectStack: "node"
+            exclusions: "**/node_modules/**"
+            extraArgs: ""
+          - projectDir: "python"
+            projectKey: "tolltally-toll-for-route-google-maps-python"
+            projectStack: "python"
+            exclusions: "**/node_modules/**"
+            extraArgs: " -Dsonar.python.coverage.reportPaths=**/coverage.xml"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        if: ${{ matrix.projectStack == 'node' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Log manual run reason
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "Manual trigger - ${{ github.event.inputs.reason }}"
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v7.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: ${{ matrix.projectDir }}
+          args: >
+            -Dsonar.projectKey=${{ matrix.projectKey }}
+            -Dsonar.sources=.
+            -Dsonar.exclusions=${{ matrix.exclusions }}
+            ${{ matrix.extraArgs }}
