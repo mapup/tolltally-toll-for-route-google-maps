@@ -5,6 +5,10 @@ on:
     - cron: '15 3,15 * * *'
   workflow_dispatch:
     inputs:
+    branch:
+      description: 'Branch to scan'
+      required: false
+      default: 'main'
       reason:
         description: 'Reason for manual run'
         required: false
@@ -46,6 +50,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.branch || 'main' }}
       - name: Set up Node.js
         if: ${{ matrix.projectStack == 'node' }}
         uses: actions/setup-node@v4
@@ -67,3 +72,15 @@ jobs:
             -Dsonar.sources=.
             -Dsonar.exclusions=${{ matrix.exclusions }}
             ${{ matrix.extraArgs }}
+      - name: Update project sheet tab
+        continue-on-error: true
+        run: |
+          sleep 120
+          RESPONSE=$(curl -s -L \
+            "${{ secrets.APPS_SCRIPT_WEB_APP_URL }}?project=${{ matrix.projectKey }}")
+          echo "Sheet update response: $RESPONSE"
+          if [ "$RESPONSE" = "ok" ]; then
+            echo "Sheet updated successfully"
+          else
+            echo "Sheet update may have failed: $RESPONSE"
+          fi
