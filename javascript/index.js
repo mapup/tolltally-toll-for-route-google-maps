@@ -1,5 +1,4 @@
 require('dotenv').config();
-const request = require("request");
 const polyline = require("polyline");
 
 const GMAPS_API_URL = "https://maps.googleapis.com/maps/api/directions/json";
@@ -35,16 +34,15 @@ const getPoints = body => body.routes
 
 const getPolyline = body => polyline.encode(getPoints(JSON.parse(body)));
 
-const getRoute = (cb) => request.get(`${GMAPS_API_URL}?${new URLSearchParams({
+const getRoute = () => fetch(`${GMAPS_API_URL}?${new URLSearchParams({
   origin: source,
   destination: destination,
   key: GMAPS_API_KEY
-}).toString()}`, cb);
+}).toString()}`).then(res => res.text());
 
 const tollguruUrl = `${TOLLGURU_API_URL}/${POLYLINE_ENDPOINT}`;
 
-const handleRoute = (e, r, body) => {
-  if (e) return console.log(e);
+const handleRoute = async (body) => {
   const jsonBody = JSON.parse(body);
   if (jsonBody.error_message) return console.log(jsonBody.error_message);
 
@@ -52,24 +50,19 @@ const handleRoute = (e, r, body) => {
   const _polyline = getPolyline(body);
   console.log(_polyline);
 
-  request.post(
-    {
-      url: tollguruUrl,
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': TOLLGURU_API_KEY
-      },
-      body: JSON.stringify({
-        source: "google",
-        polyline: _polyline,
-        ...requestParameters,
-      })
+  const res = await fetch(tollguruUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': TOLLGURU_API_KEY
     },
-    (e, r, body) => {
-      console.log(e);
-      console.log(body)
-    }
-  )
+    body: JSON.stringify({
+      source: "google",
+      polyline: _polyline,
+      ...requestParameters,
+    })
+  });
+  console.log(await res.text());
 }
 
-getRoute(handleRoute);
+getRoute().then(handleRoute).catch(console.log);
