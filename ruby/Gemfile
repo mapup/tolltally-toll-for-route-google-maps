@@ -1,3 +1,24 @@
+# One-time per clone: wire this repo's gitleaks pre-commit hook, the same way
+# javascript/package.json does it from npm's "prepare" script. A Gemfile is
+# re-evaluated on every bundler run (bundle exec, bundle check, ...), so act
+# only on the install/update commands, at most once per process, and never
+# fail the install.
+if %w[bundle bundler].include?(File.basename($PROGRAM_NAME)) &&
+   # Bare `bundle` (no args) and `bundle i` are both aliases for `bundle install`
+   # and leave ARGV.first as nil / "i" - gating on "install" alone misses them.
+   (ARGV.first.nil? || %w[install i update].include?(ARGV.first)) &&
+   !defined?($tollguru_hooks_wired)
+  $tollguru_hooks_wired = true
+  root      = File.expand_path('..', __dir__)
+  installer = File.join(root, 'hooks', 'install.sh')
+  # chdir: install.sh resolves the repo from its OWN cwd (git rev-parse
+  # --show-toplevel). Without it, `BUNDLE_GEMFILE=.../ruby/Gemfile bundle install`
+  # run from inside another git repo sets core.hooksPath on THAT repo instead.
+  if File.executable?(installer) && File.exist?(File.join(root, '.git'))
+    system(installer, chdir: root)
+  end
+end
+
 source 'https://rubygems.org'
 
 ruby '2.7.2'

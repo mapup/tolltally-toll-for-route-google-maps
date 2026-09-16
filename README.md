@@ -28,9 +28,9 @@ Each language folder is self-contained with its own README, source, and tests.
 
 | Language   | Runtime     | Dependency Tool  |
 | ---------- | ----------- | ---------------- |
-| Python     | 3.7+        | pip              |
+| Python     | 3.7+        | pip, make        |
 | JavaScript | Node.js 14+ | npm              |
-| Go         | 1.16+       | (stdlib only)    |
+| Go         | 1.16+       | make (stdlib otherwise) |
 | Ruby       | 2.7+        | bundler          |
 | PHP        | 7.4+        | (curl extension) |
 
@@ -45,6 +45,11 @@ Each language folder is self-contained with its own README, source, and tests.
 git clone <repo-url>
 cd toll-for-route-from-mapping-service-google-maps
 
+# One-time per clone: wire the gitleaks pre-commit hook (installs gitleaks if
+# missing). Without it, git commit is not scanned for secrets. Re-run after
+# any fresh clone or new worktree - it is a no-op when already done.
+./hooks/install.sh
+
 # Set API keys (all languages read from env)
 export GMAPS_API_KEY="your-google-key"
 export TOLLGURU_API_KEY="your-tollguru-key"
@@ -53,17 +58,25 @@ export TOLLGURU_API_KEY="your-tollguru-key"
 ### Per-language install
 
 ```bash
-# Python
-cd python && pip install -r requirements.txt
+# Python - `make setup` wires the git hooks (pip cannot run project scripts)
+cd python && pip install -r requirements.txt && make setup
 
-# JavaScript
+# JavaScript - npm's "prepare" script wires the git hooks automatically
 cd javascript && npm install
 
-# Ruby
+# Ruby - the Gemfile wires the git hooks automatically
 cd ruby && bundle install
 
-# Go / PHP - no install step needed
+# Go - no dependencies; `make setup` only wires the git hooks
+cd go && make setup
+
+# PHP - no install step; run ./hooks/install.sh from the repo root instead
 ```
+
+Each language's setup command above also wires the gitleaks pre-commit hook, so
+you do not have to remember `./hooks/install.sh` separately. This is a
+convenience, not a guarantee - the hook is only armed once something runs it,
+and `git commit --no-verify` still bypasses it.
 
 ## How to Run
 
