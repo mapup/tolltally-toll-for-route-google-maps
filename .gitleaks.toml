@@ -32,3 +32,38 @@ regexes = [
     '''(?i):\/\/(?:user(?:name)?|test|dummy|example|placeholder|youruser|<[^>]+>|\$\{[^}]+\}|%[a-zA-Z_]+%):''',
     '''(?i):(?:pass(?:word)?|changeme|xxxx+|example|placeholder|secret|<[^>]+>|\$\{[^}]+\}|%[a-zA-Z_]+%)@''',
 ]
+
+# Companion to the built-in generic-api-key rule. That rule only accepts secret
+# values made of letters, digits and "_ . = -", and the value must end at a
+# quote, space or semicolon. A value containing symbols such as ^ # $ % never
+# matches, so hardcoded secrets with those characters go undetected. This rule
+# only fires when the value contains one of ! @ # $ % ^ & * ~ with at least four
+# characters on each side, so it does not repeat findings the built-in rule
+# already reports.
+[[rules]]
+id = "generic-api-key-symbols"
+description = "Generic secret containing symbols such as ^ # $ % that the built-in generic-api-key rule cannot match"
+regex = '''(?i)[\w.-]{0,50}?(?:access|auth|credential|creds|key|passw(?:or)?d|secret|token)[ \t\w.-]{0,20}[\s'"]{0,3}(?::=|=>|=|:)[\x60'"\s]{0,5}([^\s'"\x60,;]{4,}[!@#$%^&*~][^\s'"\x60,;]{4,})(?:[\x60'"\s,;]|$)'''
+secretGroup = 1
+entropy = 3.5
+keywords = ["access", "auth", "credential", "creds", "key", "passwd", "password", "secret", "token"]
+
+[[rules.allowlists]]
+description = "Values that are code or references, not literal secrets. Each entry was added for a false positive seen in a full-history scan of this repo."
+regexTarget = "secret"
+regexes = [
+    '''\$\{''',                                     # template or shell interpolation: ${VAR}, `${value}`
+    '''^[\w.+-]+@[\w-]+\.[\w.-]+$''',                # email address
+    '''^https?://[^@]+$''',                         # URL without embedded credentials
+    '''\$\(''',                                     # shell command substitution: $(date +%s)
+    '''(?:^|[/=&?"'])\$[A-Z_][A-Z0-9_]{2,}''',      # shell variable reference: $TOKEN, "$BASE/path"
+    '''!\.''',                                      # TypeScript non-null assertion: tokens!.accessToken
+    '''\(/''',                                      # regex literal argument: .replace(/^Bearer/, '')
+    '''&[A-Za-z_-]+=''',                            # URL query string: projectKey=X&ps=50
+    '''/\*''',                                      # glob pattern: app/**/File.tsx
+    '''[(){}\[\]]''',                               # brackets: code, regex literals, templates, minified JS
+    '''\w::\w''',                                   # C++ scope operator: traits<T>::member
+    '''&[A-Za-z0-9_-]+=''',                         # URL query string with digits in the parameter name
+    '''%[sdvq]\b''',                                # printf-style format verb: "prefix:%s:suffix"
+    '''\*\*\*REMOVED\*\*\*''',                      # placeholder left by history-rewrite tools
+]
